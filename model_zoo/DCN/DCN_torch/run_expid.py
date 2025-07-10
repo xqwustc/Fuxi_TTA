@@ -101,7 +101,7 @@ if __name__ == '__main__':
         test_result = test_result_no_adaptation  # Keep original result for backward compatibility
         
         # Evaluate with test time adaptation if enabled
-        if params['enable_adaptation']:
+        if args['enable_tta']:
             logging.info('******** Test evaluation with adaptation ********')
             model.enable_adaptation = True
             test_gen = RankDataLoader(feature_map, stage='test', **params).make_iterator()
