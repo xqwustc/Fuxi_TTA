@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 import gc
 
-sys.path.append('../')
+sys.path.append('../..')
 from fuxictr.pytorch.torch_utils import seed_everything
 from fuxictr.pytorch.dataloaders import RankDataLoader
 from fuxictr.preprocess import FeatureProcessor
