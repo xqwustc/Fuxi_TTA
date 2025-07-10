@@ -59,11 +59,11 @@ if __name__ == '__main__':
     params['gpu'] = args['gpu']
     
     # Add Test Time Adaptation parameters to params
-    params['enable_adaptation'] = args['enable_tta']
-    params['adaptation_lr'] = args['tta_lr']
-    params['adaptation_steps'] = args['tta_steps']
-    params['adaptation_method'] = args['tta_method']
-    
+    if args['enable_tta']:
+        params['adaptation_lr'] = args['tta_lr']
+        params['adaptation_steps'] = args['tta_steps']
+        params['adaptation_method'] = args['tta_method']
+        
     set_logger(params)
     logging.info("Params: " + print_to_json(params))
     seed_everything(seed=params['seed'])
