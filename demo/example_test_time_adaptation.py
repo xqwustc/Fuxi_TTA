@@ -6,8 +6,12 @@ import pandas as pd
 import torch
 import gc
 
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
+# Get the current file's directory and its parent directory
+current_file_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_file_dir)
+
+# Add parent directory to sys.path
+sys.path.append(parent_dir)
 print(f"Current sys.path: {sys.path}")
 
 from fuxictr.pytorch.torch_utils import seed_everything
@@ -22,9 +26,18 @@ import importlib
 
 if __name__ == '__main__':
     # Load configuration from yaml file
-    config_dir = 'fuxictr/model_zoo/DCN/DCN_torch/config/'
-    config_dir = os.path.abspath(config_dir)
     experiment_id = 'DCN_frappe'
+    
+    # Define relative config directory path
+    relative_config_dir = 'model_zoo/DCN/DCN_torch/config/'
+    
+    # Combine parent directory with relative config path to get absolute path
+    config_dir = os.path.join(parent_dir, relative_config_dir)
+    print(f"Using config directory: {config_dir}")
+    
+    # Check if config directory exists
+    if not os.path.exists(config_dir):
+        raise FileNotFoundError(f"Config directory not found: {config_dir}")
     
     # Load params from config file
     params = load_config(config_dir, experiment_id)
