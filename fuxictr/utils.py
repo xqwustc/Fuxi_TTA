@@ -35,6 +35,8 @@ def load_config(config_dir, experiment_id):
     return params
 
 def load_model_config(config_dir, experiment_id):
+    # output the absolute path of the config_dir
+    config_dir = os.path.abspath(config_dir)
     model_configs = glob.glob(os.path.join(config_dir, "model_config.yaml"))
     if not model_configs:
         model_configs = glob.glob(os.path.join(config_dir, "model_config/*.yaml"))
