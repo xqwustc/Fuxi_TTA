@@ -1,35 +1,58 @@
 #!/bin/bash
 
-# 1. Print the PID of the current script. '$$' is a special variable that holds the PID.
+# 1. 打印脚本的PID
 echo "Script running with PID: $$"
 
-# 2. Prompt the user for the destination directory and read the input.
+# 2. 获取用户输入的目标目录
 read -p "Please enter the destination directory name: " DEST_DIR
 
-# Optional: Exit if the user did not enter a name.
+# 检查输入是否为空
 if [ -z "$DEST_DIR" ]; then
     echo "Error: Destination directory name cannot be empty."
     exit 1
 fi
 
-# Replace with your Git repository URL
-REPO_URL="https://github.com/your-username/your-repository.git"
+# 替换成你的 Git 仓库 URL
+REPO_URL="https://github.com/xqwustc/Fuxi_TTA.git"
 
-echo "--- Starting clone/pull loop for directory '$DEST_DIR' ---"
+echo "--- Script Initialized ---"
 
-# Infinite loop
+# 无限循环
 while true
 do
-  # Check if the target directory exists
-  if [ -d "$DEST_DIR" ]; then
-    echo "Directory '$DEST_DIR' already exists, executing git pull..."
-    # Navigate into the directory, pull, and navigate back out
-    (cd "$DEST_DIR" && git pull)
-  else
-    echo "Directory '$DEST_DIR' not found, executing git clone..."
-    git clone "$REPO_URL" "$DEST_DIR"
-  fi
+  # 3. 等待用户按回车键
+  read -p "Press [Enter] to forcefully overwrite '$DEST_DIR', or Ctrl+C to exit..."
 
-  echo "Operation complete, waiting for 10 seconds..."
-  sleep 10
+  # 检查目标目录是否存在
+  if [ -d "$DEST_DIR" ]; then
+    echo "Directory exists. Forcefully overwriting with the remote branch..."
+    
+    # 使用子 shell 执行操作，更安全
+    # 这会放弃所有本地修改、提交，并删除未跟踪的文件和目录
+    (
+      cd "$DEST_DIR" && \
+      git fetch origin && \
+      git reset --hard origin/main && \
+      git clean -fdx
+    )
+    
+    # 检查上一条命令是否成功
+    if [ $? -eq 0 ]; then
+      echo "✅ Overwrite successful."
+    else
+      echo "❌ An error occurred during the overwrite process."
+    fi
+
+  else
+    # 如果目录不存在，就先克隆一次
+    echo "Directory not found. Cloning repository for the first time..."
+    git clone "$REPO_URL" "$DEST_DIR"
+    if [ $? -eq 0 ]; then
+      echo "✅ Clone successful."
+    else
+      echo "❌ An error occurred during clone."
+    fi
+  fi
+  
+  echo "----------------------------------------" # 分隔符
 done
