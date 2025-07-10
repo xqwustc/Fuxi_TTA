@@ -20,3 +20,24 @@ frappe_x1:
     test_data: ../../../data/frappe_x1/test.csv
     train_data: ../../../data/frappe_x1/train.csv
     valid_data: ../../../data/frappe_x1/valid.csv
+
+avazu_x4:
+    data_format: csv
+    data_root: ../../../data/
+    feature_cols:
+        - { active: false, dtype: str, name: id, type: categorical }
+        - { active: true, dtype: str, name: hour, preprocess: convert_hour, type: categorical }
+        - active: true
+          dtype: str
+          name: [ C1, banner_pos, site_id, site_domain, site_category, app_id, app_domain,
+                  app_category, device_id, device_ip, device_model, device_type, device_conn_type,
+                  C14, C15, C16, C17, C18, C19, C20, C21 ]
+          type: categorical
+        - { active: true, dtype: str, name: weekday, preprocess: convert_weekday, type: categorical }
+        - { active: true, dtype: str, name: weekend, preprocess: convert_weekend, type: categorical }
+    label_col: { dtype: float, name: click }
+    min_categr_count: 2
+    test_data: ../../../data/avazu_x4/test.csv
+    train_data: ../../../data/avazu_x4/train.csv
+    valid_data: ../../../data/avazu_x4/valid.csv
+    spe_processor: avazu
