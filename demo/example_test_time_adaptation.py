@@ -6,7 +6,10 @@ import pandas as pd
 import torch
 import gc
 
-sys.path.append('../..')
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
+print(f"Current sys.path: {sys.path}")
+
 from fuxictr.pytorch.torch_utils import seed_everything
 from fuxictr.pytorch.dataloaders import RankDataLoader
 from fuxictr.preprocess import FeatureProcessor
