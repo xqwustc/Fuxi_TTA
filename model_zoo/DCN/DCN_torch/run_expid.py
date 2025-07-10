@@ -45,11 +45,25 @@ if __name__ == '__main__':
     parser.add_argument('--config', type=str, default='./config/', help='The config directory.')
     parser.add_argument('--expid', type=str, default='DCN_frappe', help='The experiment id to run.')
     parser.add_argument('--gpu', type=int, default=0, help='The gpu index, -1 for cpu')
+    # Add Test Time Adaptation related arguments
+    parser.add_argument('--enable_tta', action='store_true', help='Enable Test Time Adaptation')
+    parser.add_argument('--tta_lr', type=float, default=1e-4, help='Learning rate for Test Time Adaptation')
+    parser.add_argument('--tta_steps', type=int, default=5, help='Number of adaptation steps per batch')
+    parser.add_argument('--tta_method', type=str, default='entropy_minimization', 
+                       choices=['entropy_minimization', 'self_training', 'tent'],
+                       help='Method for Test Time Adaptation')
     args = vars(parser.parse_args())
     
     experiment_id = args['expid']
     params = load_config(args['config'], experiment_id)
     params['gpu'] = args['gpu']
+    
+    # Add Test Time Adaptation parameters to params
+    params['enable_adaptation'] = args['enable_tta']
+    params['adaptation_lr'] = args['tta_lr']
+    params['adaptation_steps'] = args['tta_steps']
+    params['adaptation_method'] = args['tta_method']
+    
     set_logger(params)
     logging.info("Params: " + print_to_json(params))
     seed_everything(seed=params['seed'])
@@ -79,9 +93,33 @@ if __name__ == '__main__':
     
     test_result = {}
     if params["test_data"]:
-        logging.info('******** Test evaluation ********')
+        # Evaluate without test time adaptation
+        logging.info('******** Test evaluation without adaptation ********')
+        model.enable_adaptation = False
         test_gen = RankDataLoader(feature_map, stage='test', **params).make_iterator()
-        test_result = model.evaluate(test_gen)
+        test_result_no_adaptation = model.evaluate(test_gen)
+        test_result = test_result_no_adaptation  # Keep original result for backward compatibility
+        
+        # Evaluate with test time adaptation if enabled
+        if params['enable_adaptation']:
+            logging.info('******** Test evaluation with adaptation ********')
+            model.enable_adaptation = True
+            test_gen = RankDataLoader(feature_map, stage='test', **params).make_iterator()
+            test_result_with_adaptation = model.evaluate(test_gen)
+            
+            # Compare results
+            logging.info("******** Results comparison ********")
+            for metric in params["metrics"]:
+                if metric in test_result_no_adaptation and metric in test_result_with_adaptation:
+                    improvement = test_result_with_adaptation[metric] - test_result_no_adaptation[metric]
+                    logging.info(f"{metric}: No adaptation = {test_result_no_adaptation[metric]:.6f}, "
+                                f"With adaptation = {test_result_with_adaptation[metric]:.6f}, "
+                                f"Improvement = {improvement:.6f}")
+            
+            # Update test_result to include both results
+            for metric in params["metrics"]:
+                if metric in test_result_with_adaptation:
+                    test_result[f"{metric}_with_adaptation"] = test_result_with_adaptation[metric]
     
     result_filename = Path(args['config']).name.replace(".yaml", "") + '.csv'
     with open(result_filename, 'a+') as fw:
