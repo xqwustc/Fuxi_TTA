@@ -19,7 +19,7 @@ import os
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 import sys
 # Add project root directory to sys path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 import logging
 import fuxictr_version
 from fuxictr import datasets
