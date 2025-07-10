@@ -36,6 +36,7 @@ import gc
 import argparse
 import os
 from pathlib import Path
+import importlib
 
 
 if __name__ == '__main__':
@@ -75,7 +76,7 @@ if __name__ == '__main__':
         FeatureProcessor = getattr(fp_module, 'FeatureProcessor')
     else:
         from fuxictr.preprocess import FeatureProcessor
-        
+
     data_dir = os.path.join(params['data_root'], params['dataset_id'])
     feature_map_json = os.path.join(data_dir, "feature_map.json")
     if params["data_format"] == "csv":
