@@ -22,7 +22,7 @@ import importlib
 
 if __name__ == '__main__':
     # Load configuration from yaml file
-    config_dir = '../../model_zoo/DCN/DCN_torch/config/'
+    config_dir = './model_zoo/DCN/DCN_torch/config/'
     config_dir = os.path.abspath(config_dir)
     experiment_id = 'DCN_frappe'
     
