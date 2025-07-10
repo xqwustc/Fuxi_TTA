@@ -41,7 +41,12 @@ class BaseModel(nn.Module):
                  eval_steps=None, 
                  embedding_regularizer=None, 
                  net_regularizer=None, 
-                 reduce_lr_on_plateau=True, 
+                 reduce_lr_on_plateau=True,
+                 # Test time adaptation parameters
+                 enable_adaptation=False,
+                 adaptation_lr=1e-4,
+                 adaptation_steps=10,
+                 adaptation_method="entropy_minimization",  # ["entropy_minimization", "self_training", "tent"]
                  **kwargs):
         super(BaseModel, self).__init__()
         self.device = get_device(gpu)
@@ -60,7 +65,19 @@ class BaseModel(nn.Module):
         self.model_dir = os.path.join(kwargs["model_root"], feature_map.dataset_id)
         self.checkpoint = os.path.abspath(os.path.join(self.model_dir, self.model_id + ".model"))
         self.validation_metrics = kwargs["metrics"]
-
+        
+        # Test time adaptation parameters
+        self.enable_adaptation = enable_adaptation
+        self.adaptation_lr = adaptation_lr
+        self.adaptation_steps = adaptation_steps
+        self.adaptation_method = adaptation_method
+        self.adaptation_optimizer = None
+        
+        # Initialize adaptation optimizer if needed
+        if self.enable_adaptation:
+            logging.info("Test time adaptation enabled with method: {}".format(self.adaptation_method))
+            logging.info("Adaptation learning rate: {}, steps: {}".format(self.adaptation_lr, self.adaptation_steps))
+            
     def compile(self, optimizer, loss, lr):
         self.optimizer = get_optimizer(optimizer, self.parameters(), lr)
         self.loss_fn = get_loss(loss)
@@ -224,41 +241,172 @@ class BaseModel(nn.Module):
             if self._stop_training:
                 break
 
+    def predict(self, data_generator):
+        if self.enable_adaptation:
+            return self.predict_with_adaptation(data_generator)
+        else:
+            # Original predict method
+            self.eval()  # set to evaluation mode
+            with torch.no_grad():
+                y_pred = []
+                if self._verbose > 0:
+                    data_generator = tqdm(data_generator, disable=False, file=sys.stdout)
+                for batch_data in data_generator:
+                    return_dict = self.forward(batch_data)
+                    y_pred.extend(return_dict["y_pred"].data.cpu().numpy().reshape(-1))
+                y_pred = np.array(y_pred, np.float64)
+                return y_pred
+    
+    def predict_with_adaptation(self, data_generator):
+        """
+        Predict with test-time adaptation
+        """
+        # Initialize adaptation optimizer if not already done
+        if self.adaptation_optimizer is None:
+            self.adaptation_optimizer = torch.optim.Adam(
+                self.parameters(), 
+                lr=self.adaptation_lr
+            )
+        
+        # Set to evaluation mode but enable gradients for adaptation
+        self.eval()
+        
+        y_pred = []
+        if self._verbose > 0:
+            data_generator = tqdm(data_generator, disable=False, file=sys.stdout)
+        
+        for batch_data in data_generator:
+            # Perform test-time adaptation on this batch
+            self._adapt_on_batch(batch_data)
+            
+            # After adaptation, make prediction
+            with torch.no_grad():
+                return_dict = self.forward(batch_data)
+                y_pred.extend(return_dict["y_pred"].data.cpu().numpy().reshape(-1))
+        
+        y_pred = np.array(y_pred, np.float64)
+        return y_pred
+    
+    def _adapt_on_batch(self, batch_data):
+        """
+        Perform adaptation on a single batch
+        """
+        # Enable gradients for adaptation
+        for param in self.parameters():
+            param.requires_grad = True
+            
+        # Perform adaptation steps
+        for _ in range(self.adaptation_steps):
+            self.adaptation_optimizer.zero_grad()
+            
+            # Forward pass
+            return_dict = self.forward(batch_data)
+            y_pred = return_dict["y_pred"]
+            
+            # Compute adaptation loss based on the selected method
+            if self.adaptation_method == "entropy_minimization":
+                # Entropy minimization: minimize prediction uncertainty
+                loss = self._entropy_loss(y_pred)
+            elif self.adaptation_method == "self_training":
+                # Self-training: generate pseudo-labels and train on them
+                pseudo_labels = (y_pred > 0.5).float().detach()
+                loss = nn.BCELoss()(y_pred, pseudo_labels)
+            elif self.adaptation_method == "tent":
+                # Tent: normalize and minimize entropy (Test Entropy minimization)
+                # Described in: https://arxiv.org/abs/2006.10726
+                loss = self._entropy_loss(y_pred)
+            else:
+                raise NotImplementedError(f"Adaptation method {self.adaptation_method} not implemented")
+            
+            # Backward pass and optimization
+            loss.backward()
+            self.adaptation_optimizer.step()
+        
+        # Disable gradients after adaptation
+        for param in self.parameters():
+            param.requires_grad = False
+    
+    def _entropy_loss(self, y_pred):
+        """
+        Compute entropy loss for binary predictions
+        """
+        # Binary entropy: -p*log(p) - (1-p)*log(1-p)
+        eps = 1e-12
+        entropy = -y_pred * torch.log(y_pred + eps) - (1 - y_pred) * torch.log(1 - y_pred + eps)
+        return entropy.mean()
+    
     def evaluate(self, data_generator, metrics=None):
+        if self.enable_adaptation:
+            return self.evaluate_with_adaptation(data_generator, metrics)
+        else:
+            # Original evaluate method
+            self.eval()  # set to evaluation mode
+            with torch.no_grad():
+                y_pred = []
+                y_true = []
+                group_id = []
+                if self._verbose > 0:
+                    data_generator = tqdm(data_generator, disable=False, file=sys.stdout)
+                for batch_data in data_generator:
+                    return_dict = self.forward(batch_data)
+                    y_pred.extend(return_dict["y_pred"].data.cpu().numpy().reshape(-1))
+                    y_true.extend(self.get_labels(batch_data).data.cpu().numpy().reshape(-1))
+                    if self.feature_map.group_id is not None:
+                        group_id.extend(self.get_group_id(batch_data).numpy().reshape(-1))
+                y_pred = np.array(y_pred, np.float64)
+                y_true = np.array(y_true, np.float64)
+                group_id = np.array(group_id) if len(group_id) > 0 else None
+                if metrics is not None:
+                    val_logs = self.evaluate_metrics(y_true, y_pred, metrics, group_id)
+                else:
+                    val_logs = self.evaluate_metrics(y_true, y_pred, self.validation_metrics, group_id)
+                logging.info('[Metrics] ' + ' - '.join('{}: {:.6f}'.format(k, v) for k, v in val_logs.items()))
+                return val_logs
+    
+    def evaluate_with_adaptation(self, data_generator, metrics=None):
+        """
+        Evaluate with test-time adaptation
+        """
+        # Initialize adaptation optimizer if not already done
+        if self.adaptation_optimizer is None:
+            self.adaptation_optimizer = torch.optim.Adam(
+                self.parameters(), 
+                lr=self.adaptation_lr
+            )
+            
         self.eval()  # set to evaluation mode
-        with torch.no_grad():
+        
+        with torch.set_grad_enabled(True):  # Enable gradients for adaptation
             y_pred = []
             y_true = []
             group_id = []
+            
             if self._verbose > 0:
                 data_generator = tqdm(data_generator, disable=False, file=sys.stdout)
+                
             for batch_data in data_generator:
-                return_dict = self.forward(batch_data)
-                y_pred.extend(return_dict["y_pred"].data.cpu().numpy().reshape(-1))
-                y_true.extend(self.get_labels(batch_data).data.cpu().numpy().reshape(-1))
-                if self.feature_map.group_id is not None:
-                    group_id.extend(self.get_group_id(batch_data).numpy().reshape(-1))
+                # Perform test-time adaptation on this batch
+                self._adapt_on_batch(batch_data)
+                
+                # After adaptation, make prediction
+                with torch.no_grad():
+                    return_dict = self.forward(batch_data)
+                    y_pred.extend(return_dict["y_pred"].data.cpu().numpy().reshape(-1))
+                    y_true.extend(self.get_labels(batch_data).data.cpu().numpy().reshape(-1))
+                    if self.feature_map.group_id is not None:
+                        group_id.extend(self.get_group_id(batch_data).numpy().reshape(-1))
+                    
             y_pred = np.array(y_pred, np.float64)
             y_true = np.array(y_true, np.float64)
             group_id = np.array(group_id) if len(group_id) > 0 else None
+            
             if metrics is not None:
                 val_logs = self.evaluate_metrics(y_true, y_pred, metrics, group_id)
             else:
                 val_logs = self.evaluate_metrics(y_true, y_pred, self.validation_metrics, group_id)
-            logging.info('[Metrics] ' + ' - '.join('{}: {:.6f}'.format(k, v) for k, v in val_logs.items()))
+                
+            logging.info('[Metrics with adaptation] ' + ' - '.join('{}: {:.6f}'.format(k, v) for k, v in val_logs.items()))
             return val_logs
-
-    def predict(self, data_generator):
-        self.eval()  # set to evaluation mode
-        with torch.no_grad():
-            y_pred = []
-            if self._verbose > 0:
-                data_generator = tqdm(data_generator, disable=False, file=sys.stdout)
-            for batch_data in data_generator:
-                return_dict = self.forward(batch_data)
-                y_pred.extend(return_dict["y_pred"].data.cpu().numpy().reshape(-1))
-            y_pred = np.array(y_pred, np.float64)
-            return y_pred
 
     def evaluate_metrics(self, y_true, y_pred, metrics, group_id=None):
         return evaluate_metrics(y_true, y_pred, metrics, group_id)
