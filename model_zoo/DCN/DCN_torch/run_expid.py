@@ -46,7 +46,7 @@ if __name__ == '__main__':
     parser.add_argument('--expid', type=str, default='DCN_frappe', help='The experiment id to run.')
     parser.add_argument('--gpu', type=int, default=0, help='The gpu index, -1 for cpu')
     # Add Test Time Adaptation related arguments
-    parser.add_argument('--enable_tta', action='store_true', help='Enable Test Time Adaptation')
+    parser.add_argument('--enable_tta', default=False, type=bool, help='Enable Test Time Adaptation')
     parser.add_argument('--tta_lr', type=float, default=1e-4, help='Learning rate for Test Time Adaptation')
     parser.add_argument('--tta_steps', type=int, default=5, help='Number of adaptation steps per batch')
     parser.add_argument('--tta_method', type=str, default='entropy_minimization', 
