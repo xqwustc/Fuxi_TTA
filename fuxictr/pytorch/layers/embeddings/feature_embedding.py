@@ -68,7 +68,20 @@ class FeatureEmbeddingDict(nn.Module):
         self.embedding_initializer = get_initializer(embedding_initializer)
         self.embedding_layers = nn.ModuleDict()
         self.feature_encoders = nn.ModuleDict()
+        
+        # Add special identity feature "#"
+        self.has_identity_feature = False
+        self.identity_feature_name = "#"
+        self.identity_embedding = None
+        
         for feature, feature_spec in self._feature_map.features.items():
+            if feature == self.identity_feature_name:
+                # Mark that we have an identity feature
+                self.has_identity_feature = True
+                # Create a special embedding for identity feature that will be a constant vector of ones
+                self.identity_embedding = nn.Parameter(torch.ones(1, embedding_dim), requires_grad=False)
+                continue
+                
             if self.is_required(feature):
                 if not (use_pretrain and use_sharing) and embedding_dim == 1:
                     feat_dim = 1 # in case for LR
@@ -87,7 +100,7 @@ class FeatureEmbeddingDict(nn.Module):
                 if use_sharing and feature_spec.get("share_embedding") in self.embedding_layers:
                     self.embedding_layers[feature] = self.embedding_layers[feature_spec["share_embedding"]]
                     continue
-
+                    
                 if feature_spec["type"] == "numeric":
                     self.embedding_layers[feature] = nn.Linear(1, feat_dim, bias=False)
                 elif feature_spec["type"] in ["categorical", "sequence"]:
@@ -172,6 +185,13 @@ class FeatureEmbeddingDict(nn.Module):
 
     def forward(self, inputs, feature_source=[], feature_type=[]):
         feature_emb_dict = OrderedDict()
+        
+        # Handle identity feature if present
+        if self.has_identity_feature:
+            # For identity feature, use the constant embedding for all samples in batch
+            batch_size = next(iter(inputs.values())).size(0)
+            feature_emb_dict[self.identity_feature_name] = self.identity_embedding.expand(batch_size, -1)
+        
         for feature in inputs.keys():
             feature_spec = self._feature_map.features[feature]
             if feature_source and not_in_whitelist(feature_spec["source"], feature_source):
