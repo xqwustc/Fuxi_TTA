@@ -76,7 +76,7 @@ class FeatureEmbeddingDict(nn.Module):
         self.has_identity_feature = has_identity_feature
         if has_identity_feature:
             self.identity_feature_name = "#"
-            self.identity_embedding = nn.Embedding(1, embedding_dim)
+            self.embedding_layers[self.identity_feature_name] = nn.Embedding(1, embedding_dim)
         
         for feature, feature_spec in self._feature_map.features.items():
             if self.is_required(feature):
@@ -165,7 +165,7 @@ class FeatureEmbeddingDict(nn.Module):
     def dict2tensor(self, embedding_dict, flatten_emb=False, feature_list=[], feature_source=[],
                     feature_type=[]):
         feature_emb_list = []
-        
+
         if self.has_identity_feature:
             feature_emb_list.append(embedding_dict[self.identity_feature_name])
 
@@ -178,7 +178,7 @@ class FeatureEmbeddingDict(nn.Module):
                 continue
             if feature in embedding_dict:
                 feature_emb_list.append(embedding_dict[feature])
-        if self.has_identity_feature:
+    
         if flatten_emb:
             feature_emb = torch.cat(feature_emb_list, dim=-1)
         else:
@@ -190,13 +190,14 @@ class FeatureEmbeddingDict(nn.Module):
         
         # Handle identity feature if present and needed
         # We process it outside the main loop for efficiency
-        if self.has_identity_feature and self.identity_embedding is not None:
+        if self.has_identity_feature:
             # Check if any inputs exist to determine batch size
             if inputs:
                 batch_size = next(iter(inputs.values())).size(0)
                 # Use nn.Embedding with input tensor of zeros (index 0)
                 identity_indices = torch.zeros(batch_size, dtype=torch.long, device=next(iter(inputs.values())).device)
-                feature_emb_dict[self.identity_feature_name] = self.identity_embedding(identity_indices)
+                embeddings = self.embedding_layers[self.identity_feature_name](identity_indices)
+                feature_emb_dict[self.identity_feature_name] = embeddings
         
         for feature in inputs.keys():
             feature_spec = self._feature_map.features[feature]
