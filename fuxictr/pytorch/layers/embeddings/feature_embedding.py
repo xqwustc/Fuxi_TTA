@@ -35,7 +35,8 @@ class FeatureEmbedding(nn.Module):
                  required_feature_columns=None,
                  not_required_feature_columns=None,
                  use_pretrain=True,
-                 use_sharing=True):
+                 use_sharing=True,
+                 has_identity_feature=False):
         super(FeatureEmbedding, self).__init__()
         self.embedding_layer = FeatureEmbeddingDict(feature_map, 
                                                     embedding_dim,
@@ -43,7 +44,8 @@ class FeatureEmbedding(nn.Module):
                                                     required_feature_columns=required_feature_columns,
                                                     not_required_feature_columns=not_required_feature_columns,
                                                     use_pretrain=use_pretrain,
-                                                    use_sharing=use_sharing)
+                                                    use_sharing=use_sharing,
+                                                    has_identity_feature=has_identity_feature)
 
     def forward(self, X, feature_source=[], feature_type=[], flatten_emb=False):
         feature_emb_dict = self.embedding_layer(X, feature_source=feature_source, feature_type=feature_type)
@@ -59,7 +61,8 @@ class FeatureEmbeddingDict(nn.Module):
                  required_feature_columns=None,
                  not_required_feature_columns=None,
                  use_pretrain=True,
-                 use_sharing=True):
+                 use_sharing=True,
+                 has_identity_feature=False):
         super(FeatureEmbeddingDict, self).__init__()
         self._feature_map = feature_map
         self.required_feature_columns = required_feature_columns
@@ -68,20 +71,13 @@ class FeatureEmbeddingDict(nn.Module):
         self.embedding_initializer = get_initializer(embedding_initializer)
         self.embedding_layers = nn.ModuleDict()
         self.feature_encoders = nn.ModuleDict()
-        
-        # Add special identity feature "#"
-        self.has_identity_feature = False
-        self.identity_feature_name = "#"
-        self.identity_embedding = None
+
+        self.has_identity_feature = has_identity_feature
+        if has_identity_feature:
+            self.identity_feature_name = "#"
+            self.identity_embedding = nn.Embedding(1, embedding_dim)
         
         for feature, feature_spec in self._feature_map.features.items():
-            if feature == self.identity_feature_name:
-                # Mark that we have an identity feature
-                self.has_identity_feature = True
-                # Create a special embedding for identity feature that will be a constant vector of ones
-                self.identity_embedding = nn.Parameter(torch.ones(1, embedding_dim), requires_grad=False)
-                continue
-                
             if self.is_required(feature):
                 if not (use_pretrain and use_sharing) and embedding_dim == 1:
                     feat_dim = 1 # in case for LR
@@ -186,11 +182,15 @@ class FeatureEmbeddingDict(nn.Module):
     def forward(self, inputs, feature_source=[], feature_type=[]):
         feature_emb_dict = OrderedDict()
         
-        # Handle identity feature if present
-        if self.has_identity_feature:
-            # For identity feature, use the constant embedding for all samples in batch
-            batch_size = next(iter(inputs.values())).size(0)
-            feature_emb_dict[self.identity_feature_name] = self.identity_embedding.expand(batch_size, -1)
+        # Handle identity feature if present and needed
+        # We process it outside the main loop for efficiency
+        if self.has_identity_feature and self.identity_embedding is not None:
+            # Check if any inputs exist to determine batch size
+            if inputs:
+                batch_size = next(iter(inputs.values())).size(0)
+                # Use nn.Embedding with input tensor of zeros (index 0)
+                identity_indices = torch.zeros(batch_size, dtype=torch.long, device=next(iter(inputs.values())).device)
+                feature_emb_dict[self.identity_feature_name] = self.identity_embedding(identity_indices)
         
         for feature in inputs.keys():
             feature_spec = self._feature_map.features[feature]
