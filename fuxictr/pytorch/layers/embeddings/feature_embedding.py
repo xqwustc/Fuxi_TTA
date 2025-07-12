@@ -36,7 +36,8 @@ class FeatureEmbedding(nn.Module):
                  not_required_feature_columns=None,
                  use_pretrain=True,
                  use_sharing=True,
-                 has_identity_feature=False):
+                 has_identity_feature=False,
+                 **kwargs):
         super(FeatureEmbedding, self).__init__()
         self.embedding_layer = FeatureEmbeddingDict(feature_map, 
                                                     embedding_dim,
