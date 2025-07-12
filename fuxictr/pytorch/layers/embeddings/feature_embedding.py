@@ -140,6 +140,10 @@ class FeatureEmbeddingDict(nn.Module):
         
     def init_weights(self):
         for k, v in self.embedding_layers.items():
+            if k == self.identity_feature_name:
+                self.embedding_initializer(v.weight)
+                continue
+            
             if "share_embedding" in self._feature_map.features[k]:
                 continue
             if type(v) == PretrainedEmbedding: # skip pretrained
