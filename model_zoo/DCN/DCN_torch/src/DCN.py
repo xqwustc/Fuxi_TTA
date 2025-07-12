@@ -43,7 +43,12 @@ class DCN(BaseModel):
                                   net_regularizer=net_regularizer,
                                   **kwargs)
         self.embedding_layer = FeatureEmbedding(feature_map, embedding_dim, **kwargs)
+        
+        ## Update
         input_dim = feature_map.sum_emb_out_dim()
+        input_dim += kwargs.get("has_identity_feature", False)*embedding_dim
+        ## Update end
+        
         self.dnn = MLP_Block(input_dim=input_dim,
                              output_dim=None, # output hidden layer
                              hidden_units=dnn_hidden_units,
