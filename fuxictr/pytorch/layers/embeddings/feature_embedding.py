@@ -165,6 +165,10 @@ class FeatureEmbeddingDict(nn.Module):
     def dict2tensor(self, embedding_dict, flatten_emb=False, feature_list=[], feature_source=[],
                     feature_type=[]):
         feature_emb_list = []
+        
+        if self.has_identity_feature:
+            feature_emb_list.append(embedding_dict[self.identity_feature_name])
+
         for feature, feature_spec in self._feature_map.features.items():
             if feature_list and not_in_whitelist(feature, feature_list):
                 continue
@@ -174,6 +178,7 @@ class FeatureEmbeddingDict(nn.Module):
                 continue
             if feature in embedding_dict:
                 feature_emb_list.append(embedding_dict[feature])
+        if self.has_identity_feature:
         if flatten_emb:
             feature_emb = torch.cat(feature_emb_list, dim=-1)
         else:
