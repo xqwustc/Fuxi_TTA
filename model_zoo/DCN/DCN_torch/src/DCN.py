@@ -75,7 +75,45 @@ class DCN(BaseModel):
 
     def forward(self, inputs):
         X = self.get_inputs(inputs)
-        feature_emb = self.embedding_layer(X, flatten_emb=True)
+        feature_emb = self.embedding_layer(X)
+        
+        # 1. 计算批次内所有样本的“平均字段嵌入” (Mean Field Embedding)
+        #    结果形状为 (field_num, embedding_dim)
+        mean_field_emb = torch.mean(feature_emb, dim=0)
+
+        # 2. 计算每个样本到“平均字段嵌入”的整体平方距离
+        #    diff 的形状是 (batch_size, field_num, embedding_dim)
+        diff = feature_emb - mean_field_emb
+        #    per_sample_dist_sq 的形状是 (batch_size,)
+        #    它现在扮演了新 "dist" 的角色，但它是一个向量而非矩阵
+        per_sample_dist_sq = diff.pow(2).sum(dim=[1, 2])
+
+        # 3. 将这个新的距离向量应用到 exp 损失函数中
+        t = 2.0 # 温度参数
+        #    torch.exp 会逐元素地应用在 per_sample_dist_sq 向量上
+        #    然后 .mean() 会计算这 batch_size 个 exp 值的平均值
+        center_based_uniformity_loss = torch.exp(-per_sample_dist_sq / t).mean()
+        
+        # --- 损失计算结束 ---
+
+        # 后续网络部分
+        feature_emb_flattened = feature_emb.view(feature_emb.size(0), -1)
+        cross_out = self.crossnet(feature_emb_flattened)
+        if self.dnn is not None:
+            # dnn_out = self.dnn(feature_emb_flattened)
+            # final_out = torch.cat([cross_out, dnn_out], dim=-1)
+            final_out = cross_out # 简化示例
+        else:
+            final_out = cross_out
+
+        y_pred = self.fc(final_out)
+        y_pred = self.output_activation(y_pred)
+        
+        # 在返回的字典中使用新的loss
+        return_dict = {"y_pred": y_pred, "add_loss": center_based_uniformity_loss}
+        return return_dict
+        
+        # Old code
         cross_out = self.crossnet(feature_emb)
         if self.dnn is not None:
             dnn_out = self.dnn(feature_emb)
@@ -84,6 +122,6 @@ class DCN(BaseModel):
             final_out = cross_out
         y_pred = self.fc(final_out)
         y_pred = self.output_activation(y_pred)
-        return_dict = {"y_pred": y_pred}
+        return_dict = {"y_pred": y_pred, "uniformity_loss": uniformity_loss}
         return return_dict
 
