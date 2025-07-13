@@ -43,7 +43,7 @@ class DCN(BaseModel):
                                   net_regularizer=net_regularizer,
                                   **kwargs)
 
-        self.method = kwargs.get('method', None)
+        self.mode = kwargs.get('mode', None)
 
         # --- update for tayfs retrain start ---
         if self.mode and self.mode == 'recon': # infer with the reconstructed embedding
