@@ -218,7 +218,7 @@ class BaseModel(nn.Module):
         loss = self.compute_loss(return_dict, y_true)
         if return_dict.get("add_loss", None):
             loss += return_dict["add_loss"]
-            logging.info(f"add_loss: {return_dict['add_loss']}")
+            # logging.info(f"add_loss: {return_dict['add_loss']}")
         loss.backward()
         nn.utils.clip_grad_norm_(self.parameters(), self._max_gradient_norm)
         self.optimizer.step()
