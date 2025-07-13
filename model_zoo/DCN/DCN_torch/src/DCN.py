@@ -93,27 +93,10 @@ class DCN(BaseModel):
         #    torch.exp 会逐元素地应用在 per_sample_dist_sq 向量上
         #    然后 .mean() 会计算这 batch_size 个 exp 值的平均值
         center_based_uniformity_loss = torch.exp(-per_sample_dist_sq / t).mean()
-        
-        # --- 损失计算结束 ---
 
         # 后续网络部分
-        feature_emb_flattened = feature_emb.view(feature_emb.size(0), -1)
-        cross_out = self.crossnet(feature_emb_flattened)
-        if self.dnn is not None:
-            # dnn_out = self.dnn(feature_emb_flattened)
-            # final_out = torch.cat([cross_out, dnn_out], dim=-1)
-            final_out = cross_out # 简化示例
-        else:
-            final_out = cross_out
+        feature_emb = feature_emb.view(feature_emb.size(0), -1)
 
-        y_pred = self.fc(final_out)
-        y_pred = self.output_activation(y_pred)
-        
-        # 在返回的字典中使用新的loss
-        return_dict = {"y_pred": y_pred, "add_loss": center_based_uniformity_loss}
-        return return_dict
-        
-        # Old code
         cross_out = self.crossnet(feature_emb)
         if self.dnn is not None:
             dnn_out = self.dnn(feature_emb)
@@ -122,6 +105,11 @@ class DCN(BaseModel):
             final_out = cross_out
         y_pred = self.fc(final_out)
         y_pred = self.output_activation(y_pred)
+        
+        # 在返回的字典中使用新的loss
+        return_dict = {"y_pred": y_pred, "add_loss": center_based_uniformity_loss}
+        return return_dict
+        
         return_dict = {"y_pred": y_pred, "uniformity_loss": uniformity_loss}
         return return_dict
 
