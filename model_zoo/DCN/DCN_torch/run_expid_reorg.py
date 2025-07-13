@@ -81,6 +81,8 @@ if __name__ == '__main__':
     model = model_class(feature_map, **params)
     model.count_parameters() # print number of parameters used in model
 
+    model.embedding_layer.plot_embedding_each_field(model.embedding_layer.embedding_layers)
+    
     train_gen, valid_gen = RankDataLoader(feature_map, stage='train', **params).make_iterator()
     model.fit(train_gen, validation_data=valid_gen, **params)
 
@@ -88,6 +90,8 @@ if __name__ == '__main__':
     valid_result = model.evaluate(valid_gen)
     del train_gen, valid_gen
     gc.collect()
+
+    model.embedding_layer.plot_embedding_each_field(model.embedding_layer.embedding_layers)
     
     test_result = {}
     if params["test_data"]:
