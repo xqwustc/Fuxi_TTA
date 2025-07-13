@@ -106,6 +106,8 @@ class DCN(BaseModel):
             t = 0.1 # 温度参数
             center_based_uniformity_loss = torch.exp(-per_sample_dist_sq / t).mean()
             center_based_uniformity_loss += center_based_uniformity_loss
+        else:
+            raise ValueError(f"Invalid loss_on: {self.loss_on}")
                 
         
         # 后续网络部分
