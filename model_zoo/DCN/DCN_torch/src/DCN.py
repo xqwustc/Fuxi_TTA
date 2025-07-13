@@ -109,7 +109,7 @@ class DCN(BaseModel):
         y_pred = self.output_activation(y_pred)
         
         # 在返回的字典中使用新的loss
-        return_dict = {"y_pred": y_pred, "add_loss": 0.5 * center_based_uniformity_loss}
+        return_dict = {"y_pred": y_pred, "add_loss": 3 * center_based_uniformity_loss}
         return return_dict
         
         return_dict = {"y_pred": y_pred, "uniformity_loss": uniformity_loss}
