@@ -39,6 +39,8 @@ class ReconEmbedding(nn.Module):
         feature_emb = self.embedding_layer.dict2tensor(feature_emb_dict, flatten_emb=flatten_emb)
         return feature_emb
 
+    def plot_embedding_each_field(self):
+        self.embedding_layer.plot_embedding_each_field(self.embedding_layer.embedding_layers)
 
 class FeatureEmbeddingDict(nn.Module):
     def __init__(self,
