@@ -93,7 +93,7 @@ if __name__ == '__main__':
     del train_gen, valid_gen
     gc.collect()
 
-    model.embedding_layer.plot_embedding_each_field(model.embedding_layer.embedding_layers)
+    model.embedding_layer.plot_embedding_each_field()
     
     test_result = {}
     if params["test_data"]:

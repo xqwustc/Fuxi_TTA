@@ -443,7 +443,8 @@ class FeatureEmbeddingDict(nn.Module):
             plt.ylabel('t-SNE 2')
         
         plt.tight_layout()
-        plt.savefig('embedding_tsne_plot.png')
+        time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        plt.savefig(f'embedding_tsne_plot_{time_str}.png')
         plt.close()
         
         logging.info(f"t-SNE plots saved to embedding_tsne_plot.png")
