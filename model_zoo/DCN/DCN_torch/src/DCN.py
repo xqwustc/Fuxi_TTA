@@ -46,10 +46,8 @@ class DCN(BaseModel):
         self.mode = kwargs.get('mode', None)
 
         # --- update for tayfs retrain start ---
-        if self.mode and self.mode == 'recon': # infer with the reconstructed embedding
-            self.embedding_layer = ReconEmbedding(feature_map, embedding_dim, method=self.method)
-        elif self.mode and self.mode == 'pre': # pre-training with the reconstructed embedding
-            self.embedding_layer = ReconEmbedding(feature_map, embedding_dim, method=self.method)
+        if self.mode and self.mode in ['recon', 'pre']: # infer with the reconstructed embedding
+            self.embedding_layer = ReconEmbedding(feature_map, embedding_dim, method=self.mode)
         else: # use the original embedding
             self.embedding_layer = FeatureEmbedding(feature_map, embedding_dim)
                                                             
