@@ -394,6 +394,7 @@ class FeatureEmbeddingDict(nn.Module):
         import matplotlib.pyplot as plt
         from sklearn.manifold import TSNE
         import math
+        from datetime import datetime
         
         # 计算子图布局
         n_features = len(feature_emb_dict)
