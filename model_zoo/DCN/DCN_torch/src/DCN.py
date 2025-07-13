@@ -102,7 +102,7 @@ class DCN(BaseModel):
            for i, (feature, embedding_layer) in enumerate(self.embedding_layer.embedding_layer.embedding_layers.items()):
             mean_field_emb = torch.mean(embedding_layer.weight, dim=0)
             diff = embedding_layer.weight - mean_field_emb
-            per_sample_dist_sq = diff.pow(2).sum(dim=[1, 2])
+            per_sample_dist_sq = diff.pow(2).sum(dim=1)
             t = 0.1 # 温度参数
             center_based_uniformity_loss = torch.exp(-per_sample_dist_sq / t).mean()
             center_based_uniformity_loss += center_based_uniformity_loss
