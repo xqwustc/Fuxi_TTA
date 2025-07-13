@@ -47,12 +47,14 @@ if __name__ == '__main__':
     parser.add_argument('--expid', type=str, default='DCN_frappe', help='The experiment id to run.')
     parser.add_argument('--gpu', type=int, default=0, help='The gpu index, -1 for cpu')
     parser.add_argument('--has_identity_feature', type=bool, default=False, help='Whether to use identity feature.')
+    parser.add_argument('--mode', type=str, default='recon', help='The mode to run the model.')
     args = vars(parser.parse_args())
     
     experiment_id = args['expid']
     params = load_config(args['config'], experiment_id)
     params['gpu'] = args['gpu']
     params['has_identity_feature'] = args['has_identity_feature']
+    params['mode'] = args['mode']
         
     set_logger(params)
     logging.info("Params: " + print_to_json(params))
@@ -82,7 +84,7 @@ if __name__ == '__main__':
     model.count_parameters() # print number of parameters used in model
 
     model.embedding_layer.plot_embedding_each_field(model.embedding_layer.embedding_layers)
-    
+
     train_gen, valid_gen = RankDataLoader(feature_map, stage='train', **params).make_iterator()
     model.fit(train_gen, validation_data=valid_gen, **params)
 
