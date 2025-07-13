@@ -20,7 +20,7 @@ class ReconEmbedding(nn.Module):
                  use_pretrain=True,
                  use_sharing=True,
                  cross_num=0,
-                 method='pre', # in [pre, recon]
+                 mode='pre', # in [pre, recon]
                  paths=None):
         super(ReconEmbedding, self).__init__()
         self.embedding_layer = FeatureEmbeddingDict(feature_map,
@@ -31,7 +31,6 @@ class ReconEmbedding(nn.Module):
                                                     use_pretrain=use_pretrain,
                                                     use_sharing=use_sharing,
                                                     cross_num=cross_num,
-                                                    method=method,
                                                     mode=mode,
                                                     paths=paths)
 
