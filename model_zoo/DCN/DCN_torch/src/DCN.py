@@ -15,6 +15,7 @@
 # limitations under the License.
 # =========================================================================
 
+import logging
 import torch
 from torch import nn
 from fuxictr.pytorch.models import BaseModel
@@ -89,10 +90,11 @@ class DCN(BaseModel):
         per_sample_dist_sq = diff.pow(2).sum(dim=[1, 2])
 
         # 3. 将这个新的距离向量应用到 exp 损失函数中
-        t = 2.0 # 温度参数
+        t = 0.1 # 温度参数
         #    torch.exp 会逐元素地应用在 per_sample_dist_sq 向量上
         #    然后 .mean() 会计算这 batch_size 个 exp 值的平均值
         center_based_uniformity_loss = torch.exp(-per_sample_dist_sq / t).mean()
+        logging.info(f"center_based_uniformity_loss: {center_based_uniformity_loss}")
 
         # 后续网络部分
         feature_emb = feature_emb.view(feature_emb.size(0), -1)
@@ -107,7 +109,7 @@ class DCN(BaseModel):
         y_pred = self.output_activation(y_pred)
         
         # 在返回的字典中使用新的loss
-        return_dict = {"y_pred": y_pred, "add_loss": center_based_uniformity_loss}
+        return_dict = {"y_pred": y_pred, "add_loss": 0.5 * center_based_uniformity_loss}
         return return_dict
         
         return_dict = {"y_pred": y_pred, "uniformity_loss": uniformity_loss}
