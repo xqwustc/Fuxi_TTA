@@ -18,7 +18,7 @@
 import torch
 from torch import nn
 from fuxictr.pytorch.models import BaseModel
-from fuxictr.pytorch.layers import FeatureEmbedding, MLP_Block, CrossNet
+from fuxictr.pytorch.layers import FeatureEmbedding, MLP_Block, CrossNet, ReconEmbedding
 
 
 class DCN(BaseModel):
@@ -42,13 +42,22 @@ class DCN(BaseModel):
                                   embedding_regularizer=embedding_regularizer, 
                                   net_regularizer=net_regularizer,
                                   **kwargs)
-        self.embedding_layer = FeatureEmbedding(feature_map, embedding_dim, **kwargs)
-        
+
+        self.method = kwargs.get('method', None)
+
+        # --- update for tayfs retrain start ---
+        if self.mode and self.mode == 'recon': # infer with the reconstructed embedding
+            self.embedding_layer = ReconEmbedding(feature_map, embedding_dim, method=self.method)
+        elif self.mode and self.mode == 'pre': # pre-training with the reconstructed embedding
+            self.embedding_layer = ReconEmbedding(feature_map, embedding_dim, method=self.method)
+        else: # use the original embedding
+            self.embedding_layer = FeatureEmbedding(feature_map, embedding_dim)
+                                                            
         ## Update
         input_dim = feature_map.sum_emb_out_dim()
         input_dim += kwargs.get("has_identity_feature", False)*embedding_dim
         ## Update end
-        
+
         self.dnn = MLP_Block(input_dim=input_dim,
                              output_dim=None, # output hidden layer
                              hidden_units=dnn_hidden_units,

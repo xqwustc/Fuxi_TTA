@@ -46,7 +46,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', type=str, default='./config/', help='The config directory.')
     parser.add_argument('--expid', type=str, default='DCN_frappe', help='The experiment id to run.')
     parser.add_argument('--gpu', type=int, default=0, help='The gpu index, -1 for cpu')
-    parser.add_argument('--has_identity_feature', type=bool, default=True, help='Whether to use identity feature.')
+    parser.add_argument('--has_identity_feature', type=bool, default=False, help='Whether to use identity feature.')
     args = vars(parser.parse_args())
     
     experiment_id = args['expid']
