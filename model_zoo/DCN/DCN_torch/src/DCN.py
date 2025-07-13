@@ -45,6 +45,9 @@ class DCN(BaseModel):
                                   **kwargs)
 
         self.mode = kwargs.get('mode', None)
+        self.loss_on = kwargs.get('loss_on', 'embeds')
+        # assert self.loss_on in ['batch', 'embeds']
+        assert self.loss_on in ['batch', 'embeds']
 
         # --- update for tayfs retrain start ---
         if self.mode and self.mode in ['recon', 'pre']: # infer with the reconstructed embedding
@@ -80,22 +83,31 @@ class DCN(BaseModel):
         
         # 1. 计算批次内所有样本的“平均字段嵌入” (Mean Field Embedding)
         #    结果形状为 (field_num, embedding_dim)
-        mean_field_emb = torch.mean(feature_emb, dim=0)
+        if self.loss_on == 'batch':
+            mean_field_emb = torch.mean(feature_emb, dim=0)
 
-        # 2. 计算每个样本到“平均字段嵌入”的整体平方距离
-        #    diff 的形状是 (batch_size, field_num, embedding_dim)
-        diff = feature_emb - mean_field_emb
-        #    per_sample_dist_sq 的形状是 (batch_size,)
-        #    它现在扮演了新 "dist" 的角色，但它是一个向量而非矩阵
-        per_sample_dist_sq = diff.pow(2).sum(dim=[1, 2])
+            # 2. 计算每个样本到“平均字段嵌入”的整体平方距离
+            #    diff 的形状是 (batch_size, field_num, embedding_dim)
+            diff = feature_emb - mean_field_emb
+            #    per_sample_dist_sq 的形状是 (batch_size,)
+            #    它现在扮演了新 "dist" 的角色，但它是一个向量而非矩阵
+            per_sample_dist_sq = diff.pow(2).sum(dim=[1, 2])
 
-        # 3. 将这个新的距离向量应用到 exp 损失函数中
-        t = 0.1 # 温度参数
-        #    torch.exp 会逐元素地应用在 per_sample_dist_sq 向量上
-        #    然后 .mean() 会计算这 batch_size 个 exp 值的平均值
-        center_based_uniformity_loss = torch.exp(-per_sample_dist_sq / t).mean()
-        logging.info(f"center_based_uniformity_loss: {center_based_uniformity_loss}")
-
+            # 3. 将这个新的距离向量应用到 exp 损失函数中
+            t = 0.1 # 温度参数
+            #    torch.exp 会逐元素地应用在 per_sample_dist_sq 向量上
+            #    然后 .mean() 会计算这 batch_size 个 exp 值的平均值
+            center_based_uniformity_loss = torch.exp(-per_sample_dist_sq / t).mean()
+        elif self.loss_on == 'embeds':
+           for i, (feature, embedding_layer) in enumerate(self.embedding_layer.embedding_layers.embedding_layers.items()):
+            mean_field_emb = torch.mean(embedding_layer.weight, dim=0)
+            diff = embedding_layer.weight - mean_field_emb
+            per_sample_dist_sq = diff.pow(2).sum(dim=[1, 2])
+            t = 0.1 # 温度参数
+            center_based_uniformity_loss = torch.exp(-per_sample_dist_sq / t).mean()
+            center_based_uniformity_loss += center_based_uniformity_loss
+                
+        
         # 后续网络部分
         feature_emb = feature_emb.view(feature_emb.size(0), -1)
 
