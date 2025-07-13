@@ -408,12 +408,23 @@ class FeatureEmbeddingDict(nn.Module):
         plt.figure(figsize=(n_cols * 5, n_rows * 4))
         
         # 对每个特征进行t-SNE降维并绘制
-        for i, (feature, embeddings) in enumerate(feature_emb_dict.items()):
+        for i, (feature, embedding_layer) in enumerate(feature_emb_dict.items()):
             # 创建子图
             plt.subplot(n_rows, n_cols, i + 1)
             
             # 获取embedding数据
-            emb_data = embeddings.detach().cpu().numpy()
+            if isinstance(embedding_layer, nn.Embedding):
+                # 对于Embedding层，获取权重
+                emb_data = embedding_layer.weight.detach().cpu().numpy()
+            elif isinstance(embedding_layer, nn.Linear):
+                # 对于Linear层，获取权重
+                emb_data = embedding_layer.weight.detach().cpu().numpy().T
+            elif isinstance(embedding_layer, torch.Tensor):
+                # 如果直接是tensor
+                emb_data = embedding_layer.detach().cpu().numpy()
+            else:
+                logging.warning(f"Unsupported embedding type for feature {feature}: {type(embedding_layer)}")
+                continue
             
             # 如果数据太大，随机采样
             max_samples = 5000
