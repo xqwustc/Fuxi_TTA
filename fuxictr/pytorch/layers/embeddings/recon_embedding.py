@@ -9,7 +9,8 @@ from fuxictr.pytorch import layers
 import random
 import pandas as pd
 import logging
-from sklearn.cluster import KMeans
+from sklearn.cluster import DBSCAN
+from sklearn.preprocessing import StandardScaler
 
 class ReconEmbedding(nn.Module):
     def __init__(self,
@@ -460,16 +461,39 @@ class FeatureEmbeddingDict(nn.Module):
                 if embedding_layer.weight.shape[0] <= 20:
                     continue
                 emb_data = embedding_layer.weight.detach().cpu().numpy()
-                # KMeans聚类
-                kmeans = KMeans(n_clusters=10, random_state=42)
-                kmeans.fit(emb_data)
-                centers = kmeans.cluster_centers_  # shape: (10, 128)
-                labels = kmeans.labels_            # shape: (1000,)
-
-                # 构造新embedding矩阵，每行替换为对应cluster中心
-                new_weights = centers[labels]      # shape: (1000, 128)
-
-                # 替换embedding_layer的权重，保持形状不变，但值是聚类中心
+                
+                # 标准化数据以提高DBSCAN效果
+                scaler = StandardScaler()
+                emb_data_scaled = scaler.fit_transform(emb_data)
+                
+                # 使用DBSCAN聚类
+                # eps是邻域半径，min_samples是形成核心点所需的最小样本数
+                dbscan = DBSCAN(eps=0.5, min_samples=5, n_jobs=-1)
+                labels = dbscan.fit_predict(emb_data_scaled)
+                
+                # DBSCAN可能会将一些点标记为噪声（标签为-1）
+                # 为这些点创建单独的簇
+                unique_labels = set(labels)
+                if -1 in unique_labels:
+                    unique_labels.remove(-1)
+                
+                # 计算每个簇的中心点
+                centers = {}
+                for label in unique_labels:
+                    mask = labels == label
+                    centers[label] = emb_data[mask].mean(axis=0)
+                
+                # 为噪声点（标签为-1）使用其原始向量
+                # 或者可以将它们分配到最近的簇
+                
+                # 构造新的embedding矩阵
+                new_weights = np.zeros_like(emb_data)
+                for i, label in enumerate(labels):
+                    if label != -1:  # 非噪声点
+                        new_weights[i] = centers[label]
+                    else:  # 噪声点保留原始向量
+                        new_weights[i] = emb_data[i]
+                
                 # 确保新权重与原权重在同一设备上
                 device = embedding_layer.weight.device
                 embedding_layer.weight = nn.Parameter(torch.from_numpy(new_weights).float().to(device))
