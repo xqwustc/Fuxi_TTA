@@ -111,12 +111,12 @@ if __name__ == '__main__':
         test_gen = RankDataLoader(feature_map, stage='test', **params).make_iterator()
         test_result = model.evaluate(test_gen)
     
-    
 
-
-    result_filename = Path(args['config']).name.replace(".yaml", "") + '.csv'
-    with open(result_filename, 'a+') as fw:
-        fw.write(' {},[command] python {},[exp_id] {},[dataset_id] {},[train] {},[val] {},[test] {}\n' \
-            .format(datetime.now().strftime('%Y%m%d-%H%M%S'), 
-                    ' '.join(sys.argv), experiment_id, params['dataset_id'],
-                    "N.A.", print_to_list(valid_result), print_to_list(test_result)))
+    # 如果 valid_result 这个符号存在
+    if 'valid_result' in locals():
+        result_filename = Path(args['config']).name.replace(".yaml", "") + '.csv'
+        with open(result_filename, 'a+') as fw:
+            fw.write(' {},[command] python {},[exp_id] {},[dataset_id] {},[train] {},[val] {},[test] {}\n' \
+                .format(datetime.now().strftime('%Y%m%d-%H%M%S'), 
+                        ' '.join(sys.argv), experiment_id, params['dataset_id'],
+                        "N.A.", print_to_list(valid_result), print_to_list(test_result)))
