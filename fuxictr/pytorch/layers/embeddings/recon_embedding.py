@@ -457,6 +457,8 @@ class FeatureEmbeddingDict(nn.Module):
     def cluster_embedding(self):
         for feature, embedding_layer in self.embedding_layers.items():
             if isinstance(embedding_layer, nn.Embedding):
+                if embedding_layer.weight.shape[0] <= 20:
+                    continue
                 emb_data = embedding_layer.weight.detach().cpu().numpy()
                 # KMeans聚类
                 kmeans = KMeans(n_clusters=10, random_state=42)
