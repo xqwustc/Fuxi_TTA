@@ -11,6 +11,13 @@ import pandas as pd
 import logging
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import NearestNeighbors
+
+# 确保你已经安装了 umap-learn 和 hdbscan
+# pip install umap-learn hdbscan
+import umap
+import hdbscan
+
 
 class ReconEmbedding(nn.Module):
     def __init__(self,
@@ -462,43 +469,109 @@ class FeatureEmbeddingDict(nn.Module):
                     continue
                 emb_data = embedding_layer.weight.detach().cpu().numpy()
                 
-                # 标准化数据以提高DBSCAN效果
                 scaler = StandardScaler()
                 emb_data_scaled = scaler.fit_transform(emb_data)
                 
-                # 使用DBSCAN聚类
-                # eps是邻域半径，min_samples是形成核心点所需的最小样本数
-                dbscan = DBSCAN(eps=0.5, min_samples=5, n_jobs=-1)
-                labels = dbscan.fit_predict(emb_data_scaled)
-                
-                # DBSCAN可能会将一些点标记为噪声（标签为-1）
-                # 为这些点创建单独的簇
-                unique_labels = set(labels)
-                if -1 in unique_labels:
-                    unique_labels.remove(-1)
-                
-                # 记录聚类数量
+                # 2. 获取聚类标签 (调用辅助函数)
+                try:
+                    labels = self._get_cluster_labels(emb_data_scaled, method='hdbscan')
+                except Exception as e:
+                    logging.error(f"Failed to cluster feature '{feature}': {e}")
+                    continue
+
+                # 3. 计算簇中心和更新权重 (这部分逻辑保持不变)
+                unique_labels = {l for l in labels if l != -1}
                 cluster_count = len(unique_labels)
-                logging.info(f"Feature '{feature}': DBSCAN found {cluster_count} clusters with {np.sum(labels == -1)} noise points")
+                noise_count = np.sum(labels == -1)
                 
-                # 计算每个簇的中心点
-                centers = {}
-                for label in unique_labels:
-                    mask = labels == label
-                    centers[label] = emb_data[mask].mean(axis=0)
+                logging.info(f"Feature '{feature}': Found {cluster_count} clusters with {noise_count} noise points.")
+
+                if cluster_count == 0:
+                    logging.warning(f"Feature '{feature}': No clusters found. Skipping weight update.")
+                    continue
+
+                centers = {label: emb_data[labels == label].mean(axis=0) for label in unique_labels}
                 
-                # 为噪声点（标签为-1）使用其原始向量
-                # 或者可以将它们分配到最近的簇
-                
-                # 构造新的embedding矩阵
                 new_weights = np.zeros_like(emb_data)
                 for i, label in enumerate(labels):
-                    if label != -1:  # 非噪声点
+                    if label != -1:
                         new_weights[i] = centers[label]
-                    else:  # 噪声点保留原始向量
-                        new_weights[i] = emb_data[i]
+                    else:
+                        new_weights[i] = emb_data[i] # 噪声点保留原样
                 
-                # 确保新权重与原权重在同一设备上
+                # 4. 更新PyTorch层权重
                 device = embedding_layer.weight.device
                 embedding_layer.weight = nn.Parameter(torch.from_numpy(new_weights).float().to(device))
-        
+                logging.info(f"Feature '{feature}' weights updated successfully.")
+
+
+    def _get_cluster_labels(self, data, method, **kwargs):
+        """
+        根据指定的方法对数据进行聚类并返回标签。
+
+        Args:
+            data (np.ndarray): 待聚类的数据 (已经标准化).
+            method (str): 聚类方法，可选 'dbscan', 'hdbscan', 'umap'.
+            **kwargs: 传递给聚类算法的额外参数.
+
+        Returns:
+            np.ndarray: 每个数据点的聚类标签.
+        """
+        num_points, dimensions = data.shape
+        logging.info(f"Clustering {num_points} points of {dimensions} dimensions using '{method}' method.")
+
+        if method == 'dbscan':
+            # --- 动态选择参数的DBSCAN ---
+            min_samples = kwargs.get('min_samples', 2 * dimensions)
+            if min_samples >= num_points: min_samples = num_points - 1
+            if min_samples <= 1: return np.zeros(num_points, dtype=int)
+
+            nbrs = NearestNeighbors(n_neighbors=min_samples).fit(data)
+            distances, _ = nbrs.kneighbors(data)
+            k_distances = np.sort(distances[:, min_samples - 1])
+            
+            # 自动寻找拐点作为eps (一个简单的启发式方法)
+            gradients = np.gradient(k_distances)
+            elbow_index = np.argmax(gradients)
+            chosen_eps = k_distances[elbow_index] if elbow_index > 0 else np.median(k_distances)
+            
+            logging.info(f"DBSCAN params: eps={chosen_eps:.4f}, min_samples={min_samples}")
+            clusterer = DBSCAN(eps=chosen_eps, min_samples=min_samples, n_jobs=-1)
+            return clusterer.fit_predict(data)
+
+        elif method == 'hdbscan':
+            # --- 直接使用HDBSCAN ---
+            min_cluster_size = kwargs.get('min_cluster_size', 15)
+            clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size,
+                                        prediction_data=True, # 允许预测新点
+                                        core_dist_n_jobs=-1)
+            return clusterer.fit_predict(data)
+
+        elif method == 'umap':
+            # --- UMAP + HDBSCAN 组合方法 ---
+            # UMAP 参数
+            n_neighbors = kwargs.get('n_neighbors', 15)
+            n_components = kwargs.get('n_components', 5) # 降维后的维度
+            min_dist = kwargs.get('min_dist', 0.0)
+            
+            # HDBSCAN 参数
+            min_cluster_size = kwargs.get('min_cluster_size', 15)
+
+            logging.info(f"UMAP params: n_neighbors={n_neighbors}, n_components={n_components}, min_dist={min_dist}")
+            logging.info(f"HDBSCAN params: min_cluster_size={min_cluster_size}")
+
+            # 1. UMAP降维
+            reducer = umap.UMAP(
+                n_neighbors=n_neighbors,
+                n_components=n_components,
+                min_dist=min_dist,
+                random_state=42,
+            )
+            embedding = reducer.fit_transform(data)
+            
+            # 2. 在降维后的空间上运行HDBSCAN
+            clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, core_dist_n_jobs=-1)
+            return clusterer.fit_predict(embedding)
+
+        else:
+            raise ValueError(f"Unknown clustering method: {method}")
