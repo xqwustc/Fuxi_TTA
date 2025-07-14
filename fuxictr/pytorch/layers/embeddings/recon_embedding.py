@@ -477,6 +477,10 @@ class FeatureEmbeddingDict(nn.Module):
                 if -1 in unique_labels:
                     unique_labels.remove(-1)
                 
+                # 记录聚类数量
+                cluster_count = len(unique_labels)
+                logging.info(f"Feature '{feature}': DBSCAN found {cluster_count} clusters with {np.sum(labels == -1)} noise points")
+                
                 # 计算每个簇的中心点
                 centers = {}
                 for label in unique_labels:
