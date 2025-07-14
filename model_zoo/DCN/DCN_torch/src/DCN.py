@@ -99,9 +99,9 @@ class DCN(BaseModel):
             #    然后 .mean() 会计算这 batch_size 个 exp 值的平均值
             center_based_uniformity_loss = torch.exp(-per_sample_dist_sq / t).mean()
         elif self.loss_on == 'embeds':
-            center_based_uniformity_loss = 0
+            center_based_uniformity_loss = torch.tensor(0.0, device=self.device)
             tot_num = 0
-
+ 
             for i, (feature, embedding_layer) in enumerate(self.embedding_layer.embedding_layer.embedding_layers.items()):
                 mean_field_emb = torch.mean(embedding_layer.weight, dim=0)
                 diff = embedding_layer.weight - mean_field_emb
@@ -110,7 +110,7 @@ class DCN(BaseModel):
                 loss_list = torch.exp(-per_sample_dist_sq / t)
                 center_based_uniformity_loss += loss_list.sum()
                 tot_num += loss_list.shape[0]
-            center_based_uniformity_loss = center_based_uniformity_loss / tot_num
+            center_based_uniformity_loss = center_based_uniformity_loss / (tot_num + 1e-8)  # 添加小值避免除零
         else:
             raise ValueError(f"Invalid loss_on: {self.loss_on}")
                 

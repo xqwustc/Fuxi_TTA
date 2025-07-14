@@ -470,5 +470,7 @@ class FeatureEmbeddingDict(nn.Module):
                 new_weights = centers[labels]      # shape: (1000, 128)
 
                 # 替换embedding_layer的权重，保持形状不变，但值是聚类中心
-                embedding_layer.weight = nn.Parameter(torch.from_numpy(new_weights).float())
+                # 确保新权重与原权重在同一设备上
+                device = embedding_layer.weight.device
+                embedding_layer.weight = nn.Parameter(torch.from_numpy(new_weights).float().to(device))
         
