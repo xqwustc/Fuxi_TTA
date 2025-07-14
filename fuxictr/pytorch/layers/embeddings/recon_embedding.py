@@ -9,6 +9,7 @@ from fuxictr.pytorch import layers
 import random
 import pandas as pd
 import logging
+from sklearn.cluster import KMeans
 
 class ReconEmbedding(nn.Module):
     def __init__(self,
@@ -41,6 +42,9 @@ class ReconEmbedding(nn.Module):
 
     def plot_embedding_each_field(self):
         self.embedding_layer.plot_embedding_each_field(self.embedding_layer.embedding_layers)
+
+    def cluster_embedding(self):
+        self.embedding_layer.cluster_embedding()
 
 class FeatureEmbeddingDict(nn.Module):
     def __init__(self,
@@ -449,4 +453,13 @@ class FeatureEmbeddingDict(nn.Module):
         plt.close()
         
         logging.info(f"t-SNE plots saved to embedding_tsne_plot.png")
+    
+    def cluster_embedding(self):
+        for feature, embedding_layer in self.embedding_layers.items():
+            if isinstance(embedding_layer, nn.Embedding):
+                emb_data = embedding_layer.weight.detach().cpu().numpy()
+                # use kmeans to cluster the embedding
+                kmeans = KMeans(n_clusters=10, random_state=42)
+                kmeans.fit(emb_data)
+                embedding_layer.weight = torch.from_numpy(kmeans.cluster_centers_).float()
         

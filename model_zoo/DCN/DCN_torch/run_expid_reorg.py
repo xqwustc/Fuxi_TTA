@@ -48,6 +48,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', type=int, default=0, help='The gpu index, -1 for cpu')
     parser.add_argument('--has_identity_feature', type=bool, default=False, help='Whether to use identity feature.')
     parser.add_argument('--mode', type=str, default='recon', help='The mode to run the model.')
+    parser.add_argument('--checkpoint', type=str, default="default", help='The checkpoint to load.')
     args = vars(parser.parse_args())
     
     experiment_id = args['expid']
@@ -84,15 +85,24 @@ if __name__ == '__main__':
     model.count_parameters() # print number of parameters used in model
 
     # model.embedding_layer.plot_embedding_each_field()
+    
+    # check point in model.checkpoint
+    if args.get('checkpoint') is None:
+        train_gen, valid_gen = RankDataLoader(feature_map, stage='train', **params).make_iterator()
+        model.fit(train_gen, validation_data=valid_gen, **params)
 
-    train_gen, valid_gen = RankDataLoader(feature_map, stage='train', **params).make_iterator()
-    model.fit(train_gen, validation_data=valid_gen, **params)
+        logging.info('****** Validation evaluation ******')
+        valid_result = model.evaluate(valid_gen)
+        del train_gen, valid_gen
+        gc.collect()
+    elif args.get('checkpoint') == "default":
+        model.load_weights(model.checkpoint)
+    else:
+        # concat the path
+        checkpoint_path = os.path.join(model.checkpoint, args['checkpoint'])
+        model.load_weights(checkpoint_path)
 
-    logging.info('****** Validation evaluation ******')
-    valid_result = model.evaluate(valid_gen)
-    del train_gen, valid_gen
-    gc.collect()
-
+    model.embedding_layer.cluster_embedding()
     model.embedding_layer.plot_embedding_each_field()
     
     test_result = {}
@@ -101,6 +111,9 @@ if __name__ == '__main__':
         test_gen = RankDataLoader(feature_map, stage='test', **params).make_iterator()
         test_result = model.evaluate(test_gen)
     
+    
+
+
     result_filename = Path(args['config']).name.replace(".yaml", "") + '.csv'
     with open(result_filename, 'a+') as fw:
         fw.write(' {},[command] python {},[exp_id] {},[dataset_id] {},[train] {},[val] {},[test] {}\n' \
