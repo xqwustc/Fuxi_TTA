@@ -107,9 +107,9 @@ class DCN(BaseModel):
                 diff = embedding_layer.weight - mean_field_emb
                 per_sample_dist_sq = diff.pow(2).sum(dim=1)
                 t = 0.1 # 温度参数
-                feature_uniformity_loss += torch.exp(-per_sample_dist_sq / t).sum()
-                tot_num += feature_uniformity_loss.shape[0]
-            center_based_uniformity_loss = feature_uniformity_loss / tot_num
+                center_based_uniformity_loss += torch.exp(-per_sample_dist_sq / t).sum()
+                tot_num += center_based_uniformity_loss.shape[0]
+            center_based_uniformity_loss = center_based_uniformity_loss / tot_num
         else:
             raise ValueError(f"Invalid loss_on: {self.loss_on}")
                 
