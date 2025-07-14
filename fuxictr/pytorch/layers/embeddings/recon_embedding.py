@@ -458,8 +458,15 @@ class FeatureEmbeddingDict(nn.Module):
         for feature, embedding_layer in self.embedding_layers.items():
             if isinstance(embedding_layer, nn.Embedding):
                 emb_data = embedding_layer.weight.detach().cpu().numpy()
-                # use kmeans to cluster the embedding
+                # KMeans聚类
                 kmeans = KMeans(n_clusters=10, random_state=42)
                 kmeans.fit(emb_data)
-                embedding_layer.weight = torch.from_numpy(kmeans.cluster_centers_).float()
+                centers = kmeans.cluster_centers_  # shape: (10, 128)
+                labels = kmeans.labels_            # shape: (1000,)
+
+                # 构造新embedding矩阵，每行替换为对应cluster中心
+                new_weights = centers[labels]      # shape: (1000, 128)
+
+                # 替换embedding_layer的权重，保持形状不变，但值是聚类中心
+                embedding_layer.weight = nn.Parameter(torch.from_numpy(new_weights).float())
         
