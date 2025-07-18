@@ -112,7 +112,7 @@ class DCN(BaseModel):
                 tot_num += loss_list.shape[0]
             center_based_uniformity_loss = center_based_uniformity_loss / (tot_num + 1e-8)  # 添加小值避免除零
         else:
-            raise ValueError(f"Invalid loss_on: {self.loss_on}")
+            pass
                 
         
         # 后续网络部分
@@ -128,9 +128,10 @@ class DCN(BaseModel):
         y_pred = self.output_activation(y_pred)
         
         # 在返回的字典中使用新的loss
-        return_dict = {"y_pred": y_pred, "add_loss": 3 * center_based_uniformity_loss}
-        return return_dict
-        
-        return_dict = {"y_pred": y_pred, "uniformity_loss": uniformity_loss}
-        return return_dict
+        if self.loss_on in ['batch', 'embeds']:
+            return_dict = {"y_pred": y_pred, "add_loss": 3 * center_based_uniformity_loss}
+            return return_dict
+        else:
+            return_dict = {"y_pred": y_pred}
+            return return_dict
 
